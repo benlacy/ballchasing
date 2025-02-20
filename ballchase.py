@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from dateutil import relativedelta, parser
 import argparse
 import os
+from enum import Enum
   
 # api-endpoint
 URL = "https://ballchasing.com/api/replays/"
@@ -18,6 +19,11 @@ with open('players.json') as f:
 
 # defining a params dict for the parameters to be sent to the API
 KEY = {'Authorization': apiKey} #
+
+class TeamColor(Enum):
+    BLUE = 0
+    ORANGE = 1
+    NEITHER = 2
 
 def get_player_id(name):
     for player in PLAYERS['data']:
@@ -94,6 +100,40 @@ def hasPlayer(replay, name):
         return False
     except:
         return False
+    
+def getPlayerTeam(replay, name):
+    try:
+        playerId = nameToId(name)
+
+        blue_ids = [player['id']['id'] for player in replay['blue']['players']]
+        orange_ids = [player['id']['id']  for player in replay['orange']['players']]
+        if playerId in blue_ids:
+            return TeamColor.BLUE
+        if playerId in orange_ids:
+            return TeamColor.ORANGE
+        
+        return TeamColor.NEITHER
+    except:
+        return TeamColor.NEITHER
+    
+def getWinner(replay):
+    try:
+        blueGoals = replay['blue']['goals']
+    except:
+        blueGoals = '0'
+
+    try:
+        orangeGoals = replay['orange']['goals']
+    except:
+        orangeGoals = '0'
+
+    if int(blueGoals) > int(orangeGoals):
+        return TeamColor.BLUE
+    
+    if int(blueGoals) < int(orangeGoals):
+        return TeamColor.ORANGE
+    
+    return TeamColor.NEITHER
 
 def countNotables(replay):
     count = 0
@@ -140,6 +180,10 @@ def filterGames(args,games):
         # Filter by game type
         if args.type:
             if not isGameType(replay, args.type):
+                continue
+
+        if args.remove_priv:
+            if isGameType(replay,'p'):
                 continue
 
         # Filter by player1
@@ -256,6 +300,7 @@ parser.add_argument('-b','--buildDatabase',action="store_true")
 parser.add_argument('-r','--refreshPlayer',action="store_true")
 parser.add_argument('-p','--ping',action="store_true")
 parser.add_argument('-sl','--stacked_lobby',default=None)
+parser.add_argument('--remove_priv',action="store_true")
 
 
 def main(args):
@@ -343,6 +388,23 @@ def main(args):
             orangeNames = ''
 
             try:
+                blueGoals = str(game['blue']['goals'])
+            except:
+                blueGoals = '0'
+
+            try:
+                orangeGoals = str(game['orange']['goals'])
+            except:
+                orangeGoals = '0'
+
+            winloss = ''
+            if args.player1:
+                if getPlayerTeam(game,args.player1) == getWinner(game):
+                    winloss = 'WIN'
+                else:
+                    winloss = 'LOSS'
+
+            try:
                 for player in game['blue']['players']:
                     blueNames = blueNames + player['name'][:12].ljust(12)
             except:
@@ -368,7 +430,7 @@ def main(args):
                 game['sort'] = ''
 
             
-            print(f"{str(game['sort']).ljust(5)}{overtime.ljust(9)}- ({gameType}) {game['date'][:10]}: {blueNames} vs   {orangeNames}| ballchasing.com/replay/{game['id']}")
+            print(f"{str(game['sort']).ljust(5)}{overtime.ljust(9)}- ({gameType}) {winloss.ljust(4)} {blueGoals.rjust(2)}-{orangeGoals.ljust(2)} - {game['date'][:10]}: {blueNames} vs   {orangeNames}| ballchasing.com/replay/{game['id']}")
         except:
             print('buggy game')
 
