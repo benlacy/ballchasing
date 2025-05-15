@@ -132,13 +132,23 @@
         },
         {
             "name": "Mawkzy",
+            "platform": "Epic",
+            "id": "6ea3d3d4f992494dacd7f757ff4e2b1a"
+        },
+        {
+            "name": "Mech",
             "platform": "Steam",
-            "id": 76561199015920736
+            "id": "76561199038935432"
         },
         {
             "name": "M0nkey M00n",
             "platform": "Steam",
             "id": 76561198823985212
+        },
+        {
+            "name": "m7md",
+            "platform": "Steam",
+            "id": 76561199048644573
         },
         {
             "name": "Nass",
@@ -174,11 +184,6 @@
             "name": "reveal",
             "platform": "Steam",
             "id": 76561199045907333
-        },
-        {
-            "name": "Reysbull",
-            "platform": "Steam",
-            "id": 76561198873085926
         },
         {
             "name": "Rise",

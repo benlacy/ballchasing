@@ -29,7 +29,7 @@ def get_player_id(name):
     for player in PLAYERS['data']:
         if player['name'] == name:
             return str(player['platform']+':'+str(player['id']))
-
+    print(f'ERROR: Player "{name}" not found')
     return None
 
 def grabGames(args):
@@ -46,11 +46,6 @@ def grabGames(args):
     #elif args.type == 'all':
         #do nothing
 
-    # if args.summary:
-    #     d = datetime.datetime.now(datetime.timezone.utc)
-    #     d2 = d - dateutil.relativedelta.relativedelta(months=2)
-    #     PARAMS['replay-date-after'] = d2.isoformat('T')
-    
     if args.date:
         PARAMS['replay-date-after'] = args.date
     
@@ -77,7 +72,7 @@ def grabGames(args):
 
             games = games + data['list']
 
-            if "next" in data.keys() and not args.summary:
+            if "next" in data.keys():
                 nextURL = data['next']
                 # nextPARAMS = []
             else:
@@ -161,6 +156,7 @@ def nameToId(name):
     for player in PLAYERS['data']:
         if player['name'] == name:
             return str(player['id'])
+    print(f'ERROR: Player "{name}" not found')
     return None
 
 def filterGames(args,games):
@@ -265,24 +261,6 @@ def buildDatabase():
         print("Writing Database....")
         json.dump(database, outfile)
 
-def summary():
-    games = []
-
-    with open("database.json", 'r') as file:
-        database = json.load(file)
-    
-    for replay in database.values():
-        if isGameType(replay,'ranked-duels'):
-            games.append(replay)
-
-    games.sort(key=lambda x: x['date'])
-    for game in games:
-        try:
-            # if args.type == '1':
-            print(game['date'][:10] + ': ' + game['blue']['players'][0]['name'][:12].ljust(12)   + str(game['blue']['goals']).rjust(3)  +' - ' + str(game['orange']['goals']).ljust(3) + game['orange']['players'][0]['name'][:12].ljust(12) + '| ' + 'ballchasing.com/replay/' + game['id'])
-        except:
-            print('ballchasing.com/replay/' + game['id'])
-
 parser = argparse.ArgumentParser(
                     prog = 'ProgramName',
                     description = 'What the program does',
@@ -295,7 +273,6 @@ parser.add_argument('-d','--date',type=int, default=None)
 parser.add_argument('-op','--opponent', action="store_true")
 parser.add_argument('-s','--sort',default=None)
 parser.add_argument('-t','--type',default=None) # 1,2,3,P,ALL
-parser.add_argument('-sum','--summary',action="store_true") # 1,2,3,P,ALL
 parser.add_argument('-b','--buildDatabase',action="store_true")
 parser.add_argument('-r','--refreshPlayer',action="store_true")
 parser.add_argument('-p','--ping',action="store_true")
@@ -321,9 +298,6 @@ def main(args):
     print("Filtering games...")
     filteredGames = filterGames(args,games)
 
-    
-
-
     ####################
     # Sort the games
     ####################
@@ -345,6 +319,56 @@ def main(args):
                 if(game['sort'] == '-1'):
                     print('FAILURE')
 
+        if(args.sort == 'thousand'):
+            finalGames = []
+            for game in filteredGames:
+                game['sort'] = '-1'
+                for notable in PLAYERS['data']:
+                
+                    #Find the player score
+                    for player in (game['blue']['players'] + game['orange']['players']):
+                        player_id_info = player.get('id', {})
+                        if player_id_info.get('id') == str(notable['id']):
+                            try:
+                                score = int(player.get('score', -1))
+                                sort_val = int(game.get('sort', -1))
+                                if score > 1000 and sort_val < score:
+                                    game['sort'] = str(score)
+                            except (ValueError, TypeError):
+                                print("Invalid score format in replay")
+
+                    # if(game['sort'] == '-1'):
+                    #     print('FAILURE')
+                if game['sort'] != '-1':
+                    finalGames.append(game)
+            filteredGames = finalGames
+        if args.sort == 'spm':
+            for game in filteredGames:
+                game['sort'] = '-1'
+                for notable in PLAYERS['data']:
+                    try:
+                        # Combine players from both teams, defaulting to empty lists if any keys are missing
+                        blue_players = game.get('blue', {}).get('players', [])
+                        orange_players = game.get('orange', {}).get('players', [])
+                        all_players = blue_players + orange_players
+
+                        # Find the notable player in the game
+                        for player in all_players:
+                            player_id_info = player.get('id', {})
+                            if player_id_info.get('id') == str(notable['id']):
+                                score = int(player.get('score', -1))
+                                duration = game.get('duration', 10000)
+                                spm = score / (duration / 60)
+
+                                current_sort = float(game.get('sort', -1))
+                                if current_sort < spm:
+                                    game['sort'] = str(int(spm)).zfill(5)
+                    except Exception as e:
+                        print(f"Error processing game {game.get('id', 'unknown')} for notable {notable.get('name', 'unknown')}: {e}")
+
+
+                    # if(game['sort'] == '-1'):
+                    #     print('FAILURE')
 
         if(args.sort == 'avg_speed') or (args.sort == 'car'):
             numRequests = 0
@@ -354,20 +378,23 @@ def main(args):
                 url = URL + game['id']
                 numRequests = numRequests + 1
                 print('{}/{}-Requesting Details...'.format(str(numRequests),numGames))
-                r = requests.get(url = url, headers = KEY)
-                data = r.json()
                 try:
-                    for player in (data['blue']['players'] + data['orange']['players']):
-                        if(player['id']['id'] == nameToId(args.player1)):
-                            #Add it to high level data
-                            if(args.sort == 'avg_speed'):
-                                game['sort'] = player['stats']['movement']['avg_speed']
-                            if(args.sort == 'car'):
-                                game['sort'] = player['car_name']
-                            break
+                    r = requests.get(url = url, headers = KEY)
+                    data = r.json()
+                    try:
+                        for player in (data['blue']['players'] + data['orange']['players']):
+                            if(player['id']['id'] == nameToId(args.player1)):
+                                #Add it to high level data
+                                if(args.sort == 'avg_speed'):
+                                    game['sort'] = player['stats']['movement']['avg_speed']
+                                if(args.sort == 'car'):
+                                    game['sort'] = player['car_name']
+                                break
+                    except:
+                        print('buggy replay')
                 except:
-                    print('buggy replay')
-                
+                    print("REQUEST ERROR: ", end="")
+                    print(r)
                 if(game['sort'] == '-1'):
                     print('FAILURE')
 
@@ -379,6 +406,12 @@ def main(args):
     # Print the games
     ####################
     for game in filteredGames:
+        now = datetime.now(timezone.utc)
+        name_elements = [args.player1, args.player2, str(args.type), args.sort, str(args.date), now.strftime('%Y_%m_%d')]
+        filename = '-'.join(e for e in name_elements if e) +'.txt'
+
+        complete_output = []
+
         try:
             overtime = ''
             if game['overtime'] == True:
@@ -387,15 +420,8 @@ def main(args):
             blueNames = ''
             orangeNames = ''
 
-            try:
-                blueGoals = str(game['blue']['goals'])
-            except:
-                blueGoals = '0'
-
-            try:
-                orangeGoals = str(game['orange']['goals'])
-            except:
-                orangeGoals = '0'
+            blueGoals = str(game.get('blue', {}).get('goals', 0))
+            orangeGoals = str(game.get('orange', {}).get('goals', 0))
 
             winloss = ''
             if args.player1:
@@ -403,18 +429,12 @@ def main(args):
                     winloss = 'WIN'
                 else:
                     winloss = 'LOSS'
+                    
+            for player in game.get('blue', {}).get('players', []):
+                blueNames += player['name'][:12].ljust(12)
 
-            try:
-                for player in game['blue']['players']:
-                    blueNames = blueNames + player['name'][:12].ljust(12)
-            except:
-                print('empty blue team')
-            
-            try:
-                for player in game['orange']['players']:
-                    orangeNames = orangeNames + player['name'][:12].ljust(12)
-            except:
-                print('empty orange team')
+            for player in game.get('orange', {}).get('players', []):
+                orangeNames += player['name'][:12].ljust(12)
 
             gameType = ''
             if game['playlist_id'] == 'ranked-duels':
@@ -429,10 +449,19 @@ def main(args):
             if args.sort == None:
                 game['sort'] = ''
 
+            formatted_string = f"{str(game['sort']).ljust(5)}{overtime.ljust(9)}- ({gameType}) {winloss.ljust(4)} {blueGoals.rjust(2)}-{orangeGoals.ljust(2)} - {game['date'][:10]}: {blueNames} vs   {orangeNames}| ballchasing.com/replay/{game['id']}"
+            print(formatted_string)
+            complete_output.append(formatted_string + '\n')
             
-            print(f"{str(game['sort']).ljust(5)}{overtime.ljust(9)}- ({gameType}) {winloss.ljust(4)} {blueGoals.rjust(2)}-{orangeGoals.ljust(2)} - {game['date'][:10]}: {blueNames} vs   {orangeNames}| ballchasing.com/replay/{game['id']}")
         except:
             print('buggy game')
+            complete_output.append('buggy game\n')
+
+
+        with open(os.path.join('output', filename),'a') as file:
+            file.writelines(complete_output)
+
+        #TODO: 
 
 def ping():
     r = requests.get(url = PING, headers = KEY)
@@ -445,9 +474,7 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
 
-    if(args.summary):
-        summary()
-    elif(args.buildDatabase):
+    if(args.buildDatabase):
         buildDatabase()
     elif(args.refreshPlayer):
         refreshPlayer()
