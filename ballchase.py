@@ -14,7 +14,7 @@ PING = "https://ballchasing.com/api"
 # location given here
 apiKey = os.getenv("BALLCHASING_API_KEY")
 
-with open('players.json') as f:
+with open('data/players.json') as f:
     PLAYERS = json.load(f)
 
 # defining a params dict for the parameters to be sent to the API
@@ -205,7 +205,7 @@ def refreshPlayer():
     database = {}
 
     print("Loading Current Database...")
-    with open("database.json", 'r') as file:
+    with open("data/database.json", 'r') as file:
         database = json.load(file)
 
     if not args.player1:
@@ -222,7 +222,7 @@ def refreshPlayer():
             # add replay to database
             database[replay['id']] = replay
     
-    with open("database.json","w") as outfile:
+    with open("data/database.json","w") as outfile:
         print("Writing Database....")
         json.dump(database, outfile)
 
@@ -232,7 +232,7 @@ def buildDatabase():
     database = {}
 
     print("Loading Current Database...")
-    with open("database.json", 'r') as file:
+    with open("data/database.json", 'r') as file:
         database = json.load(file)
 
     largest = max(database.values(), key=lambda x: datetime.strptime(x['date'],"%Y-%m-%dT%H:%M:%S%z").timestamp())
@@ -257,7 +257,7 @@ def buildDatabase():
                 # add replay to database
                 database[replay['id']] = replay
 
-    with open("database.json","w") as outfile:
+    with open("data/database.json","w") as outfile:
         print("Writing Database....")
         json.dump(database, outfile)
 
@@ -287,7 +287,7 @@ def main(args):
     ####################
     #games = grabGames(args)
     print("Opening Database...")
-    with open("database.json", 'r') as file:
+    with open("data/database.json", 'r') as file:
         database = json.load(file)
     games = list(database.values())
     games.sort(key=lambda x: x['date'])
